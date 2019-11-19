@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Ingredient Search</string>
+    <string name="take_picture_button_label">Take Picture</string>
+</resources>
