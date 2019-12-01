@@ -14,8 +14,10 @@ import android.widget.ImageView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import com.google.firebase.storage.FirebaseStorage
 import java.io.File
 import java.io.IOException
+import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -23,14 +25,19 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var cameraButton: Button
     private lateinit var imageView: ImageView
+    private lateinit var storage: FirebaseStorage
     var currentPhotoPath: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Set up references to our UI elements
         cameraButton = findViewById(R.id.cameraButton)
         imageView = findViewById(R.id.imageView)
+
+        // Create an instance of firebase storage (for uploading the image)
+        storage = FirebaseStorage.getInstance()
 
         cameraButton.setOnClickListener {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
@@ -52,10 +59,8 @@ class MainActivity : AppCompatActivity() {
             takePictureIntent.resolveActivity(packageManager)?.also {
                 // Create the File where the photo should go
                 val photoFile: File? = try {
-                    Log.d("DEBUG", "taking photo")
                     createImageFile()
                 } catch (ex: IOException) {
-                    Log.d("DEBUG", "oof")
                     null
                 }
                 // Continue only if the File was successfully created
@@ -68,6 +73,32 @@ class MainActivity : AppCompatActivity() {
                     takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
                     startActivityForResult(takePictureIntent, 1)
                 }
+            }
+        }
+    }
+
+    private fun uploadToFirebaseStorage(filepath: String) {
+        // Create a storage reference from our app
+        val storageRef = storage.reference
+
+        var file = Uri.fromFile(File(filepath))
+        val photoRef = storageRef.child("images/${file.lastPathSegment}")
+        var uploadTask = photoRef.putFile(file)
+
+        val urlTask = uploadTask.continueWithTask { task ->
+            if (!task.isSuccessful) {
+                task.exception?.let {
+                    throw it
+                }
+            }
+            photoRef.downloadUrl
+        }.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val downloadUri = task.result
+                Log.d("URL", downloadUri.toString())
+            } else {
+                // Handle failures
+                // ...
             }
         }
     }
@@ -94,8 +125,10 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
+        // Picture has been taken with the file path stored in currentPhotoPath
         if (requestCode == 1 && resultCode == RESULT_OK) {
             imageView.setImageURI(Uri.parse(currentPhotoPath))
+            uploadToFirebaseStorage(currentPhotoPath!!)
         }
     }
 
