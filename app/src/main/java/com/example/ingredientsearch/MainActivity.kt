@@ -15,9 +15,12 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.google.firebase.storage.FirebaseStorage
+import okhttp3.*
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.jetbrains.anko.doAsync
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
-import java.io.ByteArrayOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -26,7 +29,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cameraButton: Button
     private lateinit var imageView: ImageView
     private lateinit var storage: FirebaseStorage
-    var currentPhotoPath: String? = null
+    private var currentPhotoPath: String? = null
+    private val okHttpClient: OkHttpClient = OkHttpClient()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,10 +99,56 @@ class MainActivity : AppCompatActivity() {
         }.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 val downloadUri = task.result
-                Log.d("URL", downloadUri.toString())
+                makeFoodAPIRequest(downloadUri.toString())
             } else {
                 // Handle failures
                 // ...
+            }
+        }
+    }
+
+    private fun makeFoodAPIRequest(imageUrl: String) {
+        doAsync {
+            val requestBody =
+                """
+                {
+                    "inputs": [
+                        {
+                            "data": {
+                                "image": {
+                                    "url": "$imageUrl"
+                                }
+                            }
+                        }
+                    ]
+                }
+            """.trimIndent().toRequestBody(null)
+
+            val request = Request.Builder()
+                .url("https://api.clarifai.com/v2/models/bd367be194cf45149e75f01d59f77ba7/outputs")
+                .header("Authorization", "Key ${getString(R.string.clarifai_key)}")
+                .header("Content-Type", "application/json")
+                .post(requestBody)
+                .build()
+
+            val response = okHttpClient.newCall(request).execute()
+            val responseString = response.body?.string()
+
+            if (response.isSuccessful && !responseString.isNullOrEmpty()) {
+
+                val json = JSONObject(responseString)
+                val ingredients = json.getJSONArray("outputs")
+                    .getJSONObject(0)
+                    .getJSONObject("data")
+                    .getJSONArray("concepts")
+
+                for(i in 0 until ingredients.length()) {
+                    val ingredient = ingredients.getJSONObject(i)
+                    val name = ingredient.getString("name")
+                    val percentage = ingredient.getDouble("value")
+
+                    Log.d("DEBUG", "$name, $percentage")
+                }
             }
         }
     }
