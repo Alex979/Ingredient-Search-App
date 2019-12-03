@@ -1,6 +1,7 @@
 package com.example.ingredientsearch
 
 import android.Manifest
+import android.app.ProgressDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -11,6 +12,7 @@ import android.provider.MediaStore
 import android.util.Log
 import android.widget.Button
 import android.widget.ImageView
+import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -29,6 +31,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var cameraButton: Button
     private lateinit var imageView: ImageView
     private lateinit var storage: FirebaseStorage
+    private lateinit var loadingDialog: AlertDialog
     private var currentPhotoPath: String? = null
     private val okHttpClient: OkHttpClient = OkHttpClient()
 
@@ -39,6 +42,10 @@ class MainActivity : AppCompatActivity() {
         // Set up references to our UI elements
         cameraButton = findViewById(R.id.cameraButton)
         imageView = findViewById(R.id.imageView)
+
+        loadingDialog = AlertDialog.Builder(this)
+            .setMessage("Loading...")
+            .create()
 
         // Create an instance of firebase storage (for uploading the image)
         storage = FirebaseStorage.getInstance()
@@ -53,7 +60,6 @@ class MainActivity : AppCompatActivity() {
                     200
                 )
             }
-
         }
     }
 
@@ -108,6 +114,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun makeFoodAPIRequest(imageUrl: String) {
+
         doAsync {
             val requestBody =
                 """
@@ -134,6 +141,8 @@ class MainActivity : AppCompatActivity() {
             val response = okHttpClient.newCall(request).execute()
             val responseString = response.body?.string()
 
+            val ingredientList = ArrayList<Ingredient>()
+
             if (response.isSuccessful && !responseString.isNullOrEmpty()) {
 
                 val json = JSONObject(responseString)
@@ -147,9 +156,20 @@ class MainActivity : AppCompatActivity() {
                     val name = ingredient.getString("name")
                     val percentage = ingredient.getDouble("value")
 
-                    Log.d("DEBUG", "$name, $percentage")
+                    ingredientList.add(
+                        Ingredient(
+                            name = name,
+                            percentage = percentage
+                        )
+                    )
                 }
             }
+
+            val intent = Intent(this@MainActivity, IngredientsActivity::class.java)
+            intent.putParcelableArrayListExtra("ingredients", ingredientList)
+            startActivity(intent)
+
+            loadingDialog.hide()
         }
     }
 
@@ -177,7 +197,8 @@ class MainActivity : AppCompatActivity() {
 
         // Picture has been taken with the file path stored in currentPhotoPath
         if (requestCode == 1 && resultCode == RESULT_OK) {
-            imageView.setImageURI(Uri.parse(currentPhotoPath))
+
+            loadingDialog.show()
             uploadToFirebaseStorage(currentPhotoPath!!)
         }
     }
