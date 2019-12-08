@@ -1,4 +1,11 @@
 <resources>
     <string name="app_name">Ingredient Search</string>
     <string name="take_picture_button_label">Take Picture</string>
+    <string name="select_image_button_label">Select Image</string>
+    <string name="login">Login</string>
+    <string name="sign_up">Sign Up</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="confirm_password">Confirm Password</string>
+    <string name="remember_credentials">Remember Me</string>
 </resources>

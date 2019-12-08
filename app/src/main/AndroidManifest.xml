@@ -20,7 +20,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
-        <activity android:name=".IngredientsActivity"></activity>
+        <activity android:name=".SignUpActivity"></activity>
+        <activity android:name=".MainActivity" />
+        <activity android:name=".IngredientsActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -32,7 +34,7 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <activity android:name=".MainActivity">
+        <activity android:name=".LoginActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
