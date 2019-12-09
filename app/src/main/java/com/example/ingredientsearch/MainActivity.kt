@@ -24,6 +24,10 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
 import java.io.InputStream
+import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+
+
 
 
 class MainActivity : AppCompatActivity() {
@@ -176,14 +180,14 @@ class MainActivity : AppCompatActivity() {
                 }
             """.trimIndent().toRequestBody(null)
 
-            val request = Request.Builder()
+            var request = Request.Builder()
                 .url("https://api.clarifai.com/v2/models/bd367be194cf45149e75f01d59f77ba7/outputs")
                 .header("Authorization", "Key ${getString(R.string.clarifai_key)}")
                 .header("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
 
-            val response = okHttpClient.newCall(request).execute()
+            var response = okHttpClient.newCall(request).execute()
             val responseString = response.body?.string()
 
             val ingredientList = ArrayList<Ingredient>()
@@ -210,8 +214,19 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            // Download the image to send to the next intent
+            request = Request.Builder()
+                .url(imageUrl)
+                .build()
+
+            response = okHttpClient.newCall(request).execute()
+
+            val inputStream = response.body?.byteStream()
+            val bytes = inputStream?.readBytes()
+
             val intent = Intent(this@MainActivity, IngredientsActivity::class.java)
             intent.putParcelableArrayListExtra("ingredients", ingredientList)
+            intent.putExtra("image", bytes)
             startActivity(intent)
 
             loadingDialog.hide()
