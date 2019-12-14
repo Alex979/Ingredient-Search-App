@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Búsqueda de Ingredientes</string>
+    <string name="take_picture_button_label">Tomar Foto</string>
+    <string name="select_image_button_label">Seleccionar Imagen</string>
+    <string name="login">Iniciar Sesión</string>
+    <string name="sign_up">Regístrate</string>
+    <string name="username">Nombre de Usuario</string>
+    <string name="password">Contraseña</string>
+    <string name="confirm_password">Confirmar Contraseña</string>
+    <string name="remember_credentials">Recuérdame</string>
+</resources>

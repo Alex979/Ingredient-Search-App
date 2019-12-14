@@ -1,7 +1,6 @@
 package com.example.ingredientsearch
 
 import android.Manifest
-import android.app.ProgressDialog
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -11,7 +10,6 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.Button
-import android.widget.ImageView
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -25,11 +23,17 @@ import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
+import java.io.InputStream
+import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+
+
+
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var cameraButton: Button
-    private lateinit var imageView: ImageView
+    private lateinit var imageButton: Button
     private lateinit var storage: FirebaseStorage
     private lateinit var loadingDialog: AlertDialog
     private var currentPhotoPath: String? = null
@@ -41,7 +45,7 @@ class MainActivity : AppCompatActivity() {
 
         // Set up references to our UI elements
         cameraButton = findViewById(R.id.cameraButton)
-        imageView = findViewById(R.id.imageView)
+        imageButton = findViewById(R.id.imageButton)
 
         loadingDialog = AlertDialog.Builder(this)
             .setMessage("Loading...")
@@ -61,6 +65,26 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
+
+        imageButton.setOnClickListener {
+            selectImage()
+        }
+    }
+
+    private fun selectImage() {
+        val getIntent = Intent(Intent.ACTION_GET_CONTENT)
+        getIntent.type = "image/*"
+
+        val pickIntent = Intent(
+            Intent.ACTION_PICK,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        )
+        pickIntent.type = "image/*"
+
+        val chooserIntent = Intent.createChooser(getIntent, "Select Image")
+        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(pickIntent))
+
+        startActivityForResult(chooserIntent, 2)
     }
 
     private fun takePicture() {
@@ -91,17 +115,42 @@ class MainActivity : AppCompatActivity() {
         // Create a storage reference from our app
         val storageRef = storage.reference
 
-        var file = Uri.fromFile(File(filepath))
+        val file = Uri.fromFile(File(filepath))
         val photoRef = storageRef.child("images/${file.lastPathSegment}")
-        var uploadTask = photoRef.putFile(file)
+        val uploadTask = photoRef.putFile(file)
 
-        val urlTask = uploadTask.continueWithTask { task ->
+        uploadTask.continueWithTask { task ->
             if (!task.isSuccessful) {
                 task.exception?.let {
                     throw it
                 }
             }
             photoRef.downloadUrl
+        }.addOnCompleteListener { task ->
+            if (task.isSuccessful) {
+                val downloadUri = task.result
+                makeFoodAPIRequest(downloadUri.toString())
+            } else {
+                // Handle failures
+                // ...
+            }
+        }
+    }
+
+    private fun uploadToFirebaseStorage(stream: InputStream) {
+        // Create a storage reference from our app
+        val storageRef = storage.reference
+
+        val imageRef = storageRef.child("images/${UUID.randomUUID()}")
+        val uploadTask = imageRef.putStream(stream)
+
+        uploadTask.continueWithTask { task ->
+            if (!task.isSuccessful) {
+                task.exception?.let {
+                    throw it
+                }
+            }
+            imageRef.downloadUrl
         }.addOnCompleteListener { task ->
             if (task.isSuccessful) {
                 val downloadUri = task.result
@@ -131,14 +180,14 @@ class MainActivity : AppCompatActivity() {
                 }
             """.trimIndent().toRequestBody(null)
 
-            val request = Request.Builder()
+            var request = Request.Builder()
                 .url("https://api.clarifai.com/v2/models/bd367be194cf45149e75f01d59f77ba7/outputs")
                 .header("Authorization", "Key ${getString(R.string.clarifai_key)}")
                 .header("Content-Type", "application/json")
                 .post(requestBody)
                 .build()
 
-            val response = okHttpClient.newCall(request).execute()
+            var response = okHttpClient.newCall(request).execute()
             val responseString = response.body?.string()
 
             val ingredientList = ArrayList<Ingredient>()
@@ -165,8 +214,19 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            // Download the image to send to the next intent
+            request = Request.Builder()
+                .url(imageUrl)
+                .build()
+
+            response = okHttpClient.newCall(request).execute()
+
+            val inputStream = response.body?.byteStream()
+            val bytes = inputStream?.readBytes()
+
             val intent = Intent(this@MainActivity, IngredientsActivity::class.java)
             intent.putParcelableArrayListExtra("ingredients", ingredientList)
+            intent.putExtra("image", bytes)
             startActivity(intent)
 
             loadingDialog.hide()
@@ -183,11 +243,9 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == 200) {
             // We only requested one permission, so its result is the first element
             if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                Log.d("DEBUG", "Permission granted");
                 takePicture()
             } else {
                 // User denied the permission :(
-                Log.d("DEBUG", "Permission denied");
             }
         }
     }
@@ -200,12 +258,16 @@ class MainActivity : AppCompatActivity() {
 
             loadingDialog.show()
             uploadToFirebaseStorage(currentPhotoPath!!)
+        } else if (requestCode == 2 && resultCode == RESULT_OK) {
+
+            loadingDialog.show()
+            val inputStream = contentResolver.openInputStream(data!!.data!!)
+            uploadToFirebaseStorage(inputStream!!)
         }
     }
 
     @Throws(IOException::class)
     private fun createImageFile(): File {
-        Log.d("DEBUG", "creating image")
         // Create an image file name
         val timeStamp: String = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
         val storageDir: File? = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
